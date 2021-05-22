@@ -21,12 +21,13 @@ using namespace std;
 #define APP_MSG 2
 #define INV 3
 
+int thread_rank,size;
+int lamportClock = 10;
+vector<int> looking;
 
 MPI_Datatype MPI_PAKIET_T;
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t clockMut = PTHREAD_MUTEX_INITIALIZER;
-int lamportClock = 10;
-vector<int> looking;
 
 typedef struct
 {
@@ -34,9 +35,9 @@ typedef struct
     int clock; /* można zmienić nazwę na bardziej pasujące */
 } packet_t;
 
-string getTabs(int rank){
+string getTabs(){
     string a="";
-    for(int i=0;i<rank;i++){
+    for(int i=0;i<thread_rank;i++){
         a+='\t';
     }
     return a;
@@ -49,6 +50,7 @@ string vecToString(vector<int> vec){
     }
     return out;
 }
+
 int sendMsg(int data, int count, MPI_Datatype datatype, int dest, int tag)
 {
     packet_t packet;
@@ -70,72 +72,57 @@ int recvMsg(packet_t *buf, int count, MPI_Datatype datatype, int source, int tag
     return res;
 }
 
-void process_INV(packet_t pakiet,MPI_Status status,int rank){
+void process_INV(packet_t pakiet,MPI_Status status,int thread_rank){
     int from=status.MPI_SOURCE;
-    if(from==rank)return;
-    cout<<getTabs(rank)<<"INV from "<<from<<" c:"<<pakiet.clock<<";d:"<<pakiet.appdata<<endl;
+    if(from==thread_rank)return;
+    cout<<getTabs()<<"INV from "<<from<<" c:"<<pakiet.clock<<";d:"<<pakiet.appdata<<endl;
     looking.push_back(status.MPI_SOURCE);
-    cout<<getTabs(rank)<<"looking: "<<vecToString(looking)<<endl;
+    cout<<getTabs()<<"looking: "<<vecToString(looking)<<endl;
+}
+
+void send_finish_to_all(){
+    for(int i=0;i<size;i++){
+        sendMsg(0,1,MPI_PAKIET_T,i,FINISH);
+    }
 }
 
 /* Kod funkcji wykonywanej przez wątek */
-void *startFunc(void *ptr)
+void *mainThreadFunc(void *ptr)
 {
     packet_t pakiet;
-
-    /* wątek się kończy, gdy funkcja się kończy */
     sendMsg(965, 1, MPI_PAKIET_T, 2, INV);
     sleep(5);
-    
-    sendMsg(0,1,MPI_PAKIET_T,0,FINISH);
-    sendMsg(0,1,MPI_PAKIET_T,1,FINISH);
-    sendMsg(0,1,MPI_PAKIET_T,2,FINISH);
-    sendMsg(0,1,MPI_PAKIET_T,3,FINISH);
+    send_finish_to_all();
     return 0;
 }
 
 int main(int argc, char **argv)
 {
-    int size, rank;
     int provided;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-    /* Stworzenie typu */
-    /* Poniższe (aż do MPI_Type_commit) potrzebne tylko, jeżeli
-       brzydzimy się czymś w rodzaju MPI_Send(&typ, sizeof(pakiet_t), MPI_BYTE....
-    */
-    /* sklejone z stackoverflow */
+    MPI_Comm_rank(MPI_COMM_WORLD, &thread_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     const int nitems = 2;
     int blocklengths[2] = {1, 1};
     MPI_Datatype typy[2] = {MPI_INT, MPI_INT};
-    
     MPI_Aint offsets[2];
-
     offsets[0] = offsetof(packet_t, appdata);
     offsets[1] = offsetof(packet_t, clock);
-
     MPI_Type_create_struct(nitems, blocklengths, offsets, typy, &MPI_PAKIET_T);
     MPI_Type_commit(&MPI_PAKIET_T);
 
     pthread_t threadA;
-    /* Tworzenie wątku */
-    pthread_create(&threadA, NULL, startFunc, 0);
-
-    
+    pthread_create(&threadA, NULL, mainThreadFunc, 0);
     char end = FALSE;
-
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    cout<<getTabs(rank)<<"started "<<rank<<endl;
-    srand((int)time(0)+rank);
     
-
-    /* Obrazuje pętlę odbierającą pakiety o różnych typach */
+    cout<<getTabs()<<"started "<<thread_rank<<endl;
+    srand((int)time(0)+thread_rank);
+    
     packet_t pakiet;
     MPI_Status status;
     while (!end)
     {
         recvMsg(&pakiet, 1, MPI_PAKIET_T, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-
         switch (status.MPI_TAG)
         {
         case FINISH:
@@ -144,17 +131,14 @@ int main(int argc, char **argv)
         case APP_MSG:
             break;
         case INV:
-            process_INV(pakiet,status,rank);
+            process_INV(pakiet,status,thread_rank);
             break;
-        /* więcej case */
         default:
             break;
         }
     }
 
     pthread_mutex_destroy(&mut);
-
-    /* Czekamy, aż wątek potomny się zakończy */
     pthread_join(threadA, NULL);
     MPI_Type_free(&MPI_PAKIET_T);
     MPI_Finalize();
