@@ -1,5 +1,4 @@
 #include <mpi.h>
-
 #include <cstdlib>
 #include <stdio.h>
 #include <stddef.h>
@@ -42,6 +41,7 @@ typedef struct
 } packet_t;
 
 void send_invites();
+void search_for_pair();
 
 string getTabs()
 {
@@ -145,9 +145,7 @@ void process_DEN(packet_t pakiet, int from)
     case 3:
         remove_from_looking(from);
         state=2;
-        if(looking.size()==0){
-            send_invites();
-        }
+        search_for_pair();
         break;
     }
 }
