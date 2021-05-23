@@ -41,14 +41,16 @@ typedef struct
     int clock; /* można zmienić nazwę na bardziej pasujące */
 } packet_t;
 
+void send_invites();
+
 string getTabs()
 {
-    string a = to_string(thread_rank) + " ";
+    string a = "";
     for (int i = 0; i < thread_rank; i++)
     {
         a += ' ';
     }
-    return a;
+    return a+to_string(thread_rank) + " ";
 }
 
 string vecToString(vector<int> vec)
@@ -82,6 +84,10 @@ int recvMsg(packet_t *buf, int count, MPI_Datatype datatype, int source, int tag
     return res;
 }
 
+void remove_from_looking(int item){
+    looking.erase(remove(looking.begin(),looking.end(),item),looking.end());
+}
+
 void process_INV(packet_t pakiet, MPI_Status status, int thread_rank)
 {
     int from = status.MPI_SOURCE;
@@ -112,13 +118,13 @@ void process_ANS(packet_t pakiet, int from)
         break;
     case 2:
         state=4;
-        remove(looking.begin(),looking.end(),from);
+        remove_from_looking(from);
         current_pair=from;
         sendMsg(0,1,MPI_PAKIET_T,from, ACK);
         break;
     case 3:
         if(from==ans_send_to){
-            remove(looking.begin(),looking.end(),from);
+            remove_from_looking(from);
             sendMsg(0,1,MPI_PAKIET_T,from,ACK);
         }else{
             sendMsg(0,1,MPI_PAKIET_T,from, DEN);
@@ -133,11 +139,15 @@ void process_ANS(packet_t pakiet, int from)
 
 void process_DEN(packet_t pakiet, int from)
 {
+    cout<<getTabs()<<"Denied "<<from;
     switch (state)
     {
     case 3:
-        remove(looking.begin(),looking.end(),from);
+        remove_from_looking(from);
         state=2;
+        if(looking.size()==0){
+            send_invites();
+        }
         break;
     }
 }
@@ -148,7 +158,7 @@ void process_ACK(packet_t pakiet, int from)
     case 3:
         state=4;
         current_pair=from;
-        remove(looking.begin(),looking.end(),from);
+        remove_from_looking(from);
         break;
     default:
         cout<<"got strange ACK";
@@ -163,6 +173,29 @@ void send_finish_to_all()
     }
 }
 
+void send_invites(){
+    for (int i = 0; i < size; i++)
+        {
+            if (i != thread_rank)
+            {
+                sendMsg(0, 1, MPI_PAKIET_T, i, INV);
+            }
+        }
+        state = 2;
+}
+
+void search_for_pair(){
+    if (looking.size() == 0)
+    {
+        send_invites();
+    }
+    else
+    {
+        sendMsg(0, 1, MPI_PAKIET_T, looking.back(), ANS);
+        state = 3;
+    }
+}
+
 /* Kod funkcji wykonywanej przez wątek */
 void *mainThreadFunc(void *ptr)
 {
@@ -172,27 +205,17 @@ void *mainThreadFunc(void *ptr)
         case 1:
             cout<<getTabs()<<"Odpoczywam"<<endl;
             sleep(rand() % 6 + 1);
-            if (looking.size() == 0)
-            {
-                for (int i = 0; i < size; i++)
-                {
-                    if (i != thread_rank)
-                    {
-                        sendMsg(0, 1, MPI_PAKIET_T, i, INV);
-                    }
-                }
-                state = 2;
-            }
-            else
-            {
-                sendMsg(0, 1, MPI_PAKIET_T, looking.back(), ANS);
-                state = 3;
-            }
+            search_for_pair();
             break;
+        case 2:
+
+            break;
+        
         case 4:
             cout<<getTabs()<<"Debautjem!!!! z "<<current_pair<<endl;
             sleep(10+rand()%10);
             state=1;
+            current_pair=-1;
             break;
         }
         sleep(1);
@@ -219,7 +242,7 @@ int main(int argc, char **argv)
     pthread_create(&threadA, NULL, mainThreadFunc, 0);
     char end = FALSE;
 
-    cout << getTabs() << "started " << thread_rank << endl;
+    //cout << getTabs() << "started " << thread_rank << endl;
     srand((int)time(0) + thread_rank);
 
     packet_t pakiet;
