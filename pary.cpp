@@ -96,6 +96,32 @@ void search_for_pair();
 string getTabs()
 {
     string a = "";
+    switch(thread_rank){
+        case 0:
+            a+="\033[0;31m";
+            break;
+        case 1:
+            a+="\033[0;32m";
+            break;
+        case 2:
+            a+="\033[0;33m";
+            break;
+        case 3:
+            a+="\033[0;34m";
+            break;
+        case 4:
+            a+="\033[0;35m";
+            break;
+        case 5:
+            a+="\033[0;36m";
+            break;
+        case 6:
+            a+="\033[0;37m";
+            break;
+        case 7:
+            a+="\033[0;38m";
+            break;
+    }
     for (int i = 0; i < thread_rank; i++)
     {
         a += "  ";
@@ -179,19 +205,21 @@ void process_INV(packet_t pakiet, MPI_Status status, int thread_rank)
     int from = status.MPI_SOURCE;
     if (from == thread_rank)return;
     
-    cout << getTabs() << "INV from " << from;
+    //cout << getTabs() << "INV from " << from;
     if (std::find(looking.begin(), looking.end(), from) == looking.end())
     {
         looking.push_back(from);
     }
     else
     {
-        cout << getTabs() << "duplicate inv recived!";
+        //cout << getTabs() << "duplicate inv recived!";
     }
-    cout << " looking: " << vecToString(looking) << endl;
+    //cout << " looking: " << vecToString(looking) << endl;
     if(state==2){
-        sendMsg(0,1,MPI_PAKIET_T,from,ANS);
         state=3;
+        ans_send_to=from;
+        sendMsg(0,1,MPI_PAKIET_T,from,ANS);
+        
     }
 }
 
@@ -209,6 +237,7 @@ void process_ANS(packet_t pakiet, int from)
         sendMsg(0,1,MPI_PAKIET_T,from, ACK);
         break;
     case 3:
+        
         if(from==ans_send_to){
             remove_from_looking(from);
             sendMsg(0,1,MPI_PAKIET_T,from,ACK);
@@ -225,12 +254,13 @@ void process_ANS(packet_t pakiet, int from)
 
 void process_DEN(packet_t pakiet, int from)
 {
-    cout<<getTabs()<<"Denied "<<from<<std::endl;
+    cout<<getTabs()<<"Denied "<<from<<" "<<current_pair<<" "<<vecToString(looking)<<" state:" <<state<<std::endl;
     switch (state)
     {
     case 3:
         remove_from_looking(from);
         state=2;
+
         search_for_pair();
         break;
     }
@@ -277,7 +307,8 @@ void search_for_pair(){
     else
     {
         state = 3;
-        sendMsg(0, 1, MPI_PAKIET_T, looking.back(), ANS);
+        ans_send_to=looking.back();
+        sendMsg(0, 1, MPI_PAKIET_T, ans_send_to, ANS);
         
     }
 }
@@ -499,6 +530,7 @@ void requestArguments()
 //zwraca true przy wygranej
 bool debate()
 {
+    return false; //changeme
     if(myArgument == enemyArgument)
     {
         std::cout<<getTabs()<<"Remis debaty z "<<to_string(current_pair)<<std::endl;
