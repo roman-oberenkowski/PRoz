@@ -119,7 +119,7 @@ string getTabs()
             a+="\033[0;37m";
             break;
         case 7:
-            a+="\033[0;38m";
+            a+="\033[0;40m";
             break;
     }
     for (int i = 0; i < thread_rank; i++)
@@ -205,14 +205,14 @@ void process_INV(packet_t pakiet, MPI_Status status, int thread_rank)
     int from = status.MPI_SOURCE;
     if (from == thread_rank)return;
     
-    //cout << getTabs() << "INV from " << from;
+    cout << getTabs() << "INV from " << from;
     if (std::find(looking.begin(), looking.end(), from) == looking.end())
     {
         looking.push_back(from);
     }
     else
     {
-        //cout << getTabs() << "duplicate inv recived!";
+        cout << getTabs() << "duplicate inv recived!";
     }
     //cout << " looking: " << vecToString(looking) << endl;
     if(state==2){
@@ -530,7 +530,6 @@ void requestArguments()
 //zwraca true przy wygranej
 bool debate()
 {
-    return false; //changeme
     if(myArgument == enemyArgument)
     {
         std::cout<<getTabs()<<"Remis debaty z "<<to_string(current_pair)<<std::endl;
