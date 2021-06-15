@@ -334,7 +334,7 @@ string queue2Str(std::vector <queueEl> queue)
             pom = to_string(it->id);
             pom += ":";
             pom +=to_string(it->clock);
-            res += pom+" , ";
+            res += pom+" , ";;
         }
     return res;
 }
