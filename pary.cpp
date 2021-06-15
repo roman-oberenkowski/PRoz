@@ -232,8 +232,9 @@ void process_ANS(packet_t pakiet, int from)
         state=4;
         remove_from_looking(from);
         current_pair=from;
-        cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
+        
         sendMsg(0,1,MPI_PAKIET_T,from, ACK);
+        
         break;
     case 3:
         
@@ -253,7 +254,7 @@ void process_ANS(packet_t pakiet, int from)
 
 void process_DEN(packet_t pakiet, int from)
 {
-    cout<<getTabs()<<"Denied "<<from<<" "<<current_pair<<" "<<vecToString(looking)<<" state:" <<state<<std::endl;
+    cout<<getTabs()<<"Denied "<<from<<std::endl;//<<" "<<current_pair<<" "<<vecToString(looking)<<" state:" <<state<<std::endl;
     switch (state)
     {
     case 3:
@@ -272,8 +273,9 @@ void process_ACK(packet_t pakiet, int from)
     case 3:
         state=4;
         current_pair=from;
-        cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
+        
         remove_from_looking(from);
+        
         break;
     default:
         cout<<"got strange ACK";
@@ -568,7 +570,7 @@ void *mainThreadFunc(void *ptr)
             break;
         
         case 4:
-            //cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
+            cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
             if(current_pair > thread_rank)
             {
                 sendReqForRoom(current_pair);
@@ -579,7 +581,7 @@ void *mainThreadFunc(void *ptr)
 
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Partner pobrał argumenty"<<std::endl;
-                sleep(1);
+                //sleep(1);
                 debateResult = debate();
 
                 
@@ -603,7 +605,7 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Pobrano oba argumenty"<<std::endl;
                 sendMsg(myArgument , 1, MPI_PAKIET_T , current_pair , GOT_ARGUMENTS);
-                sleep(1);
+                //sleep(1);
                 debateResult = debate();
                 std::cout<<getTabs()<<"Oddaję argumenty"<<std::endl;
                 leaveQueue(getQueueForArgument(myArgument));
@@ -623,16 +625,16 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_unlock(&clockMut);
 
             }
-            sleep(10);
-            if(debateResult)sleep(10);
+            //sleep(10);
+            //if(debateResult)sleep(10);
             pthread_mutex_lock(&pairMut);
             state=1;
             current_pair=-1;
             pthread_mutex_unlock(&pairMut);
             break;
         }
-        sleep(1);
-        cout<<getTabs()<<"state: "<<state<<endl;
+        //sleep(1);
+        //cout<<getTabs()<<"state: "<<state<<endl;
     }
 }
 
