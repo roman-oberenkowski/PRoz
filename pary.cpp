@@ -65,7 +65,7 @@ typedef struct
 std::vector <queueEl> queueForRoom;
 int receivedACKS;
 pthread_mutex_t roomMut = PTHREAD_MUTEX_INITIALIZER;
-int S = 2;
+int S = 20;
 
 std::vector <queueEl> queueForMiski;
 int MreceivedACKS;
@@ -85,6 +85,8 @@ int myArgument;
 int enemyArgument;
 pthread_mutex_t argumentsMut = PTHREAD_MUTEX_INITIALIZER;
 
+
+pthread_mutex_t pairMut = PTHREAD_MUTEX_INITIALIZER;
 
 void send_invites();
 void search_for_pair();
@@ -261,6 +263,7 @@ void process_DEN(packet_t pakiet, int from)
         break;
     }
 }
+
 void process_ACK(packet_t pakiet, int from)
 {
     switch (state)
@@ -291,8 +294,7 @@ void send_invites(){
             {
                 sendMsg(0, 1, MPI_PAKIET_T, i, INV);
             }
-        }
-        
+        }    
 }
 
 void search_for_pair(){
@@ -555,7 +557,9 @@ void *mainThreadFunc(void *ptr)
         case 1:
             cout<<getTabs()<<"Odpoczywam"<<endl;
             //sleep(rand() % 6 + 1);
+            pthread_mutex_lock(&pairMut);
             search_for_pair();
+            pthread_mutex_unlock(&pairMut);
             break;
         case 2:
 
@@ -573,7 +577,7 @@ void *mainThreadFunc(void *ptr)
 
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Partner pobrał argumenty"<<std::endl;
-                sleep(1);
+                //sleep(1);
                 debateResult = debate();
 
                 
@@ -597,7 +601,7 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Pobrano oba argumenty"<<std::endl;
                 sendMsg(myArgument , 1, MPI_PAKIET_T , current_pair , GOT_ARGUMENTS);
-                sleep(1);
+                //sleep(1);
                 debateResult = debate();
                 std::cout<<getTabs()<<"Oddaję argumenty"<<std::endl;
                 leaveQueue(getQueueForArgument(myArgument));
@@ -617,14 +621,16 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_unlock(&clockMut);
 
             }
-            sleep(10);
-            if(debateResult)sleep(10);
+            //sleep(10);
+            //if(debateResult)sleep(10);
+            pthread_mutex_lock(&pairMut);
             state=1;
             current_pair=-1;
+            pthread_mutex_unlock(&pairMut);
             break;
         }
-        sleep(1);
-        cout<<getTabs()<<"state: "<<state<<endl;
+        //sleep(1);
+        //cout<<getTabs()<<"state: "<<state<<endl;
     }
 }
 
@@ -680,6 +686,7 @@ int main(int argc, char **argv)
     while (!end)
     {
         recvMsg(&pakiet, 1, MPI_PAKIET_T, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        
         switch (status.MPI_TAG)
         {
         case FINISH:
@@ -688,16 +695,24 @@ int main(int argc, char **argv)
         case APP_MSG:
             break;
         case INV:
+            pthread_mutex_lock(&pairMut);
             process_INV(pakiet, status, thread_rank);
+            pthread_mutex_unlock(&pairMut);
             break;
         case ANS:
+            pthread_mutex_lock(&pairMut);
             process_ANS(pakiet, status.MPI_SOURCE);
+            pthread_mutex_unlock(&pairMut);
             break;
         case DEN:
+            pthread_mutex_lock(&pairMut);
             process_DEN(pakiet, status.MPI_SOURCE);
+            pthread_mutex_unlock(&pairMut);
             break;
         case ACK:
+            pthread_mutex_lock(&pairMut);
             process_ACK(pakiet, status.MPI_SOURCE);
+            pthread_mutex_unlock(&pairMut);
             break;
         case RELofS:
             resp2Rel(pakiet, status , &queueForRoom);
