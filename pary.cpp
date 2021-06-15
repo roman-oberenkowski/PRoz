@@ -52,7 +52,7 @@ pthread_mutex_t clockMut = PTHREAD_MUTEX_INITIALIZER;
 typedef struct
 {
     int appdata;
-    int clock; /* można zmienić nazwę na bardziej pasujące */
+    int clock;
 } packet_t;
 
 
@@ -65,20 +65,20 @@ typedef struct
 std::vector <queueEl> queueForRoom;
 int receivedACKS;
 pthread_mutex_t roomMut = PTHREAD_MUTEX_INITIALIZER;
-int S = 2;
+int S = 16;
 
 std::vector <queueEl> queueForMiski;
 int MreceivedACKS;
-int M = 2;
+int M = 16;
 
 std::vector <queueEl> queueForSlipki;
 int GreceivedACKS;
 
-int G = 2;
+int G = 16;
 
 std::vector <queueEl> queueForPinezki;
 int PreceivedACKS;
-int P = 2;
+int P = 16;
 
 int argumentsSecured;
 int myArgument;
@@ -87,6 +87,7 @@ pthread_mutex_t argumentsMut = PTHREAD_MUTEX_INITIALIZER;
 
 
 pthread_mutex_t pairMut = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t queueMut = PTHREAD_MUTEX_INITIALIZER;
 
 void send_invites();
 void search_for_pair();
@@ -229,9 +230,10 @@ void process_ANS(packet_t pakiet, int from)
         sendMsg(0, 1, MPI_PAKIET_T, from, DEN);
         break;
     case 2:
+        current_pair=from;
         state=4;
         remove_from_looking(from);
-        current_pair=from;
+        
         
         sendMsg(0,1,MPI_PAKIET_T,from, ACK);
         
@@ -271,8 +273,9 @@ void process_ACK(packet_t pakiet, int from)
     switch (state)
     {
     case 3:
-        state=4;
         current_pair=from;
+        state=4;
+        
         
         remove_from_looking(from);
         
@@ -302,6 +305,7 @@ void send_invites(){
 }
 
 void search_for_pair(){
+    ans_send_to=-1;
     if (looking.size() == 0)
     {
         send_invites();
@@ -332,6 +336,7 @@ string queue2Str(std::vector <queueEl> queue)
 
 void insertIntoQueue(std::vector <queueEl>* queue , queueEl el)
 {
+    pthread_mutex_lock(&queueMut);
     //cout<<getTabs()<<"wstawiam do kolejki"<<endl;
     if(queue->size() == 0)queue->push_back(el);
     else{
@@ -354,6 +359,7 @@ void insertIntoQueue(std::vector <queueEl>* queue , queueEl el)
         }
         if(inserted == false)queue->push_back(el);
     }
+    pthread_mutex_unlock(&queueMut);
     //cout<<getTabs()<<"wstawiłem do kolejki"<<endl;
     //cout<<getTabs()<<queue2Str(*queue)<<endl;
 }
@@ -398,6 +404,7 @@ void resp2Req(packet_t packet , MPI_Status status , std::vector <queueEl>* queue
 
 void resp2Rel( packet_t packet ,MPI_Status status , std::vector <queueEl> *queue  )
 {
+    pthread_mutex_lock(&queueMut);
     //cout<<getTabs()<<"RelOfRoom from "<<status.MPI_SOURCE<<" c:"<<packet.clock<<endl;
     std::vector<queueEl>::iterator it;
     for(it = queue->begin() ; it<queue->end() ; it++)
@@ -410,10 +417,12 @@ void resp2Rel( packet_t packet ,MPI_Status status , std::vector <queueEl> *queue
     }
     //cout<<getTabs()<<"kolejka: "<<queue2Str(*queue)<<endl;
     //cout<<getTabs()<<"obsłużyłem REL"<<endl;
+    pthread_mutex_unlock(&queueMut);
 }
 
 bool check4Section(std::vector <queueEl>* queue , int* confirmed, int sectionSize , pthread_mutex_t* mutex)
 {
+    pthread_mutex_lock(&queueMut);
     //std::cout<<getTabs()<<"Sprawdzam sekcje, liczba acków: "<<*confirmed<<std::endl;
     bool res = false;
     if(*confirmed == size-1)
@@ -438,6 +447,7 @@ bool check4Section(std::vector <queueEl>* queue , int* confirmed, int sectionSiz
         }
         
     }
+    pthread_mutex_unlock(&queueMut);
 
     
 
@@ -446,6 +456,7 @@ bool check4Section(std::vector <queueEl>* queue , int* confirmed, int sectionSiz
 
 void leaveQueue(std::vector <queueEl>* queue)
 {
+    pthread_mutex_lock(&queueMut);
     for(int i=0; i<queue->size();i++)
             {
                 if((queue->begin()+i)->id == thread_rank)
@@ -454,6 +465,7 @@ void leaveQueue(std::vector <queueEl>* queue)
                     break;
                 }
             }
+    pthread_mutex_unlock(&queueMut);
 }
 
 int decideArgument()
@@ -519,8 +531,10 @@ void requestArguments()
         }
     }
     el.clock = lamportClock;
+
     insertIntoQueue(getQueueForArgument(myArgument) , el);
     insertIntoQueue(getQueueForArgument(enemyArgument) , el);
+
     pthread_mutex_unlock(&clockMut);
 }
 //zwraca true przy wygranej
@@ -556,6 +570,7 @@ void *mainThreadFunc(void *ptr)
     packet_t pakiet;
     bool debateResult = false;
     while(1){
+        //pthread_mutex_lock(&pairMut);
         switch (state)
         {
         case 1:
@@ -628,11 +643,13 @@ void *mainThreadFunc(void *ptr)
             //sleep(10);
             //if(debateResult)sleep(10);
             pthread_mutex_lock(&pairMut);
-            state=1;
             current_pair=-1;
+            state=1;
+            
             pthread_mutex_unlock(&pairMut);
             break;
         }
+        //pthread_mutex_unlock(&pairMut);
         //sleep(1);
         //cout<<getTabs()<<"state: "<<state<<endl;
     }
@@ -689,7 +706,19 @@ int main(int argc, char **argv)
     
     while (!end)
     {
-        recvMsg(&pakiet, 1, MPI_PAKIET_T, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        int res = recvMsg(&pakiet, 1, MPI_PAKIET_T, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        
+        if(res!=0){
+            send_finish_to_all();
+            cout<<"BLAD ODBIORU\n";
+            return 0;
+        }
+
+        if(status.MPI_SOURCE==thread_rank){
+            send_finish_to_all();
+            cout<<"BLAD ODEBRALEM\n WIADOMOSC\n OD\n SAMEGO\n SIEBIE\n";
+            return 0;
+        }
         
         switch (status.MPI_TAG)
         {
@@ -723,8 +752,10 @@ int main(int argc, char **argv)
             check4Section(&queueForRoom , &receivedACKS, S , &roomMut);
             break;
         case REQforS:
+            pthread_mutex_lock(&pairMut);
             remove_from_looking( status.MPI_SOURCE);
             remove_from_looking(pakiet.appdata);
+            pthread_mutex_unlock(&pairMut);
             resp2Req(pakiet , status , &queueForRoom , ACKSection);
             break;
         case ACKSection:
