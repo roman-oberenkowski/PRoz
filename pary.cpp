@@ -225,7 +225,7 @@ void process_ANS(packet_t pakiet, int from)
 
 void process_DEN(packet_t pakiet, int from)
 {
-    cout<<getTabs()<<"Denied "<<from;
+    cout<<getTabs()<<"Denied "<<from<<std::endl;
     switch (state)
     {
     case 3:
@@ -258,6 +258,7 @@ void send_finish_to_all()
 }
 
 void send_invites(){
+    state = 2;
     for (int i = 0; i < size; i++)
         {
             if (i != thread_rank)
@@ -265,7 +266,7 @@ void send_invites(){
                 sendMsg(0, 1, MPI_PAKIET_T, i, INV);
             }
         }
-        state = 2;
+        
 }
 
 void search_for_pair(){
@@ -275,8 +276,9 @@ void search_for_pair(){
     }
     else
     {
-        sendMsg(0, 1, MPI_PAKIET_T, looking.back(), ANS);
         state = 3;
+        sendMsg(0, 1, MPI_PAKIET_T, looking.back(), ANS);
+        
     }
 }
 
@@ -525,33 +527,6 @@ bool debate()
 void *mainThreadFunc(void *ptr)
 {
     packet_t pakiet;
-    //przykład obsługi sekcji krytycznej
-    /*
-    if(thread_rank != 0)
-    {
-        //sleep(rand()%5);
-        sendReqForRoom();
-        pthread_mutex_lock(&roomMut);
-        std::cout<<getTabs()<<"Hura jest w sekcji krytycznej"<<std::endl;
-        sleep(20);
-        std::cout<<getTabs()<<"Opuszczam sekcję"<<std::endl;
-        leaveQueue(&queueForRoom);
-        packet_t packet;
-        pthread_mutex_lock(&clockMut);
-        lamportClock++;
-        packet.clock = lamportClock;
-        for(int i=0;i<size;i++)
-        {
-            if(i!= thread_rank)
-            {
-                MPI_Send(&packet , 1 , MPI_PAKIET_T , i , RELofS,MPI_COMM_WORLD);
-            }
-        }
-        pthread_mutex_unlock(&clockMut);
-
-    }*/
-    
-    
     bool debateResult = false;
     while(1){
         switch (state)
@@ -645,6 +620,7 @@ void checkArgumentsSecured()
 
 int main(int argc, char **argv)
 {
+    std::ios_base::sync_with_stdio(0);
     int provided;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     MPI_Comm_rank(MPI_COMM_WORLD, &thread_rank);
