@@ -314,6 +314,11 @@ void search_for_pair(){
     {
         state = 3;
         ans_send_to=looking.back();
+        if(ans_send_to == thread_rank)
+        {
+            cout<<getTabs()<<"--Wysyłam do siebie--"<<endl;
+            send_finish_to_all();
+        }
         sendMsg(0, 1, MPI_PAKIET_T, ans_send_to, ANS);
         
     }
