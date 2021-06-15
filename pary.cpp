@@ -36,9 +36,7 @@ using namespace std;
 #define ACK 6
 #define GOT_ROOM 201
 #define GOT_ARGUMENTS 202
-#define MISKI 901
-#define PINEZKI 902
-#define SLIPKI 903 
+
 
 int thread_rank, size;
 int state = 1;
@@ -71,17 +69,15 @@ int S = 2;
 
 std::vector <queueEl> queueForMiski;
 int MreceivedACKS;
-pthread_mutex_t miskiMut = PTHREAD_MUTEX_INITIALIZER;
 int M = 2;
 
 std::vector <queueEl> queueForSlipki;
 int GreceivedACKS;
-pthread_mutex_t slipkiMut = PTHREAD_MUTEX_INITIALIZER;
+
 int G = 2;
 
 std::vector <queueEl> queueForPinezki;
 int PreceivedACKS;
-pthread_mutex_t pinezkiMut = PTHREAD_MUTEX_INITIALIZER;
 int P = 2;
 
 int argumentsSecured;
@@ -205,14 +201,14 @@ void process_INV(packet_t pakiet, MPI_Status status, int thread_rank)
     int from = status.MPI_SOURCE;
     if (from == thread_rank)return;
     
-    cout << getTabs() << "INV from " << from;
+    cout << getTabs() << "INV from " << from<< " looking: " << vecToString(looking) << endl;
     if (std::find(looking.begin(), looking.end(), from) == looking.end())
     {
         looking.push_back(from);
     }
     else
     {
-        cout << getTabs() << "duplicate inv recived!";
+        cout << getTabs() << "duplicate inv recived!"<<endl;
     }
     //cout << " looking: " << vecToString(looking) << endl;
     if(state==2){
@@ -432,13 +428,7 @@ bool check4Section(std::vector <queueEl>* queue , int* confirmed, int sectionSiz
                     break;
                 }
             }
-            // if(queueForRoom.front().id == thread_rank)
-            // {
-            //     res = true;
-            //     receivedACKS = 0;
-            //     pthread_mutex_unlock(&roomMut);
-                
-            // }
+
         }
         
     }
@@ -463,7 +453,7 @@ void leaveQueue(std::vector <queueEl>* queue)
 int decideArgument()
 {
     int pom[] = {REQforMISKI , REQforSLIPKI , REQforPINEZKI};
-    std::random_shuffle(pom , pom+2);
+    std::random_shuffle(pom , pom+3);
     for(int i=0;i<3;i++)
     {
         switch (pom[i])
@@ -667,9 +657,9 @@ int main(int argc, char **argv)
 
     //początkowe ustawienie mutexów dla sekcji krytycznych
     pthread_mutex_lock(&roomMut);
-    pthread_mutex_lock(&miskiMut);
-    pthread_mutex_lock(&pinezkiMut);
-    pthread_mutex_lock(&slipkiMut);
+    //pthread_mutex_lock(&miskiMut);
+    //pthread_mutex_lock(&pinezkiMut);
+    //pthread_mutex_lock(&slipkiMut);
     pthread_mutex_lock(&argumentsMut);
     receivedACKS = 0;
     MreceivedACKS = 0;
@@ -736,7 +726,7 @@ int main(int argc, char **argv)
             break;
         case RELofMISKI:
             resp2Rel(pakiet, status , &queueForMiski);
-            if(check4Section(&queueForMiski , &MreceivedACKS , M,&miskiMut))
+            if(check4Section(&queueForMiski , &MreceivedACKS , M,nullptr))
             {
                 cout<<getTabs()<<"Pobrano miski"<<endl;
                 checkArgumentsSecured();
@@ -748,7 +738,7 @@ int main(int argc, char **argv)
             break;
         case ACK_MISKI:
             MreceivedACKS += 1;
-            if(check4Section(&queueForMiski , &MreceivedACKS , M,&miskiMut))
+            if(check4Section(&queueForMiski , &MreceivedACKS , M,nullptr))
                 {
                     cout<<getTabs()<<"Pobrano miski"<<endl;
                     checkArgumentsSecured();
@@ -756,7 +746,7 @@ int main(int argc, char **argv)
             break;
         case RELofPINEZKI:
             resp2Rel(pakiet, status , &queueForPinezki);
-            if(check4Section(&queueForPinezki , &PreceivedACKS , P , &pinezkiMut))
+            if(check4Section(&queueForPinezki , &PreceivedACKS , P , nullptr))
                 {
                     cout<<getTabs()<<"Pobrano pinezki"<<endl;
                     checkArgumentsSecured();
@@ -767,7 +757,7 @@ int main(int argc, char **argv)
             break;
         case ACK_PINEZKI:
             PreceivedACKS += 1;
-            if(check4Section(&queueForPinezki , &PreceivedACKS ,P , &pinezkiMut))
+            if(check4Section(&queueForPinezki , &PreceivedACKS ,P , nullptr))
                 {
                     cout<<getTabs()<<"Pobrano pinezki"<<endl;
                     checkArgumentsSecured();
@@ -775,7 +765,7 @@ int main(int argc, char **argv)
             break;
         case RELofSlipki:
             resp2Rel(pakiet, status , &queueForSlipki);
-            if(check4Section(&queueForSlipki , &GreceivedACKS , G , &slipkiMut))
+            if(check4Section(&queueForSlipki , &GreceivedACKS , G , nullptr))
                 {
                     cout<<getTabs()<<"Pobrano slipki"<<endl;
                     checkArgumentsSecured();
@@ -786,7 +776,7 @@ int main(int argc, char **argv)
             break;
         case ACK_SLIPKI:
             GreceivedACKS += 1;
-            if(check4Section(&queueForSlipki , &GreceivedACKS ,G , &slipkiMut))
+            if(check4Section(&queueForSlipki , &GreceivedACKS ,G , nullptr))
                 {
                     cout<<getTabs()<<"Pobrano slipki"<<endl;
                     checkArgumentsSecured();
@@ -798,6 +788,9 @@ int main(int argc, char **argv)
     }
 
     pthread_mutex_destroy(&mut);
+    pthread_mutex_destroy(&clockMut);
+    pthread_mutex_destroy(&roomMut);
+    pthread_mutex_destroy(&argumentsMut);
     pthread_join(threadA, NULL);
     MPI_Type_free(&MPI_PAKIET_T);
     MPI_Finalize();
