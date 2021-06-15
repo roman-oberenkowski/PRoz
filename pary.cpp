@@ -65,7 +65,7 @@ typedef struct
 std::vector <queueEl> queueForRoom;
 int receivedACKS;
 pthread_mutex_t roomMut = PTHREAD_MUTEX_INITIALIZER;
-int S = 20;
+int S = 2;
 
 std::vector <queueEl> queueForMiski;
 int MreceivedACKS;
@@ -203,14 +203,14 @@ void process_INV(packet_t pakiet, MPI_Status status, int thread_rank)
     int from = status.MPI_SOURCE;
     if (from == thread_rank)return;
     
-    cout << getTabs() << "INV from " << from<< " looking: " << vecToString(looking) << endl;
+    //cout << getTabs() << "INV from " << from<< " looking: " << vecToString(looking) << endl;
     if (std::find(looking.begin(), looking.end(), from) == looking.end())
     {
         looking.push_back(from);
     }
     else
     {
-        cout << getTabs() << "duplicate inv recived!"<<endl;
+        //cout << getTabs() << "duplicate inv recived!"<<endl;
     }
     //cout << " looking: " << vecToString(looking) << endl;
     if(state==2){
@@ -232,6 +232,7 @@ void process_ANS(packet_t pakiet, int from)
         state=4;
         remove_from_looking(from);
         current_pair=from;
+        cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
         sendMsg(0,1,MPI_PAKIET_T,from, ACK);
         break;
     case 3:
@@ -271,6 +272,7 @@ void process_ACK(packet_t pakiet, int from)
     case 3:
         state=4;
         current_pair=from;
+        cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
         remove_from_looking(from);
         break;
     default:
@@ -556,7 +558,7 @@ void *mainThreadFunc(void *ptr)
         {
         case 1:
             cout<<getTabs()<<"Odpoczywam"<<endl;
-            //sleep(rand() % 6 + 1);
+            
             pthread_mutex_lock(&pairMut);
             search_for_pair();
             pthread_mutex_unlock(&pairMut);
@@ -566,7 +568,7 @@ void *mainThreadFunc(void *ptr)
             break;
         
         case 4:
-            cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
+            //cout<<getTabs()<<"Dobrałem się w parę z "<<current_pair<<endl;
             if(current_pair > thread_rank)
             {
                 sendReqForRoom(current_pair);
@@ -577,7 +579,7 @@ void *mainThreadFunc(void *ptr)
 
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Partner pobrał argumenty"<<std::endl;
-                //sleep(1);
+                sleep(1);
                 debateResult = debate();
 
                 
@@ -601,7 +603,7 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_lock(&argumentsMut);
                 std::cout<<getTabs()<<"Pobrano oba argumenty"<<std::endl;
                 sendMsg(myArgument , 1, MPI_PAKIET_T , current_pair , GOT_ARGUMENTS);
-                //sleep(1);
+                sleep(1);
                 debateResult = debate();
                 std::cout<<getTabs()<<"Oddaję argumenty"<<std::endl;
                 leaveQueue(getQueueForArgument(myArgument));
@@ -621,16 +623,16 @@ void *mainThreadFunc(void *ptr)
                 pthread_mutex_unlock(&clockMut);
 
             }
-            //sleep(10);
-            //if(debateResult)sleep(10);
+            sleep(10);
+            if(debateResult)sleep(10);
             pthread_mutex_lock(&pairMut);
             state=1;
             current_pair=-1;
             pthread_mutex_unlock(&pairMut);
             break;
         }
-        //sleep(1);
-        //cout<<getTabs()<<"state: "<<state<<endl;
+        sleep(1);
+        cout<<getTabs()<<"state: "<<state<<endl;
     }
 }
 
